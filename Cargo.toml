@@ -11,7 +11,6 @@ license = "MIT"
 edition = "2018"
 
 [dependencies]
-async-std = "1.0"
 base64 = "0.22"
 bytecodec = "0.4"
 byteorder = "1"
@@ -20,4 +19,5 @@ env_logger = "0.11.0"
 httpcodec = "0.2"
 log = "0.4.20"
 sha-1 = "0.10"
+tokio = { version = "1.41.1", features = ["full", "net"] }
 trackable = "1"
