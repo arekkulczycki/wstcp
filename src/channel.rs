@@ -13,7 +13,12 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
-use tokio::net::TcpStream;
+
+#[cfg(feature = "tokio")]
+use tokio::{io::AsyncRead as Read, net::TcpStream, io::AsyncWrite as Write};
+
+#[cfg(feature = "async-std")]
+use async_std::{io::Read, net::TcpStream, io::Write};
 
 const BUF_SIZE: usize = 4096;
 
@@ -324,7 +329,10 @@ impl Future for ProxyChannel {
 enum Handshake {
     RecvRequest(RequestDecoder<NoBodyDecoder>),
     ConnectToRealServer(
-        Pin<Box<(dyn Future<Output=tokio::io::Result<TcpStream>> + Send + 'static)>>,
+        #[cfg(feature = "async-std")]
+        Pin<Box<(dyn Future<Output = async_std::io::Result<TcpStream>> + Send + 'static)>>,
+        #[cfg(feature = "tokio")]
+        Pin<Box<(dyn Future<Output = tokio::io::Result<TcpStream>> + Send + 'static)>>,
         WebSocketKey,
     ),
     SendResponse(ResponseEncoder<NoBodyEncoder>, bool),
@@ -413,8 +421,8 @@ impl Closing {
     fn is_client_closed(&self) -> bool {
         *self
             == Closing::InProgress {
-            client_closed: true,
-        }
+                client_closed: true,
+            }
     }
 }
 
@@ -424,7 +432,7 @@ struct SyncReader<'a, 'b, 'c, T> {
     cx: &'b mut Context<'c>,
 }
 
-impl<'a, 'b, 'c, T: tokio::io::AsyncRead> SyncReader<'a, 'b, 'c, T> {
+impl<'a, 'b, 'c, T: Read> SyncReader<'a, 'b, 'c, T> {
     fn new(inner: &'a mut T, cx: &'b mut Context<'c>) -> Self {
         Self { inner, cx }
     }
@@ -432,18 +440,31 @@ impl<'a, 'b, 'c, T: tokio::io::AsyncRead> SyncReader<'a, 'b, 'c, T> {
 
 impl<'a, 'b, 'c, T> std::io::Read for SyncReader<'a, 'b, 'c, T>
 where
-    T: tokio::io::AsyncRead + std::marker::Unpin,
+    T: Read + std::marker::Unpin,
 {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let read_buf = &mut tokio::io::ReadBuf::new(buf);
-        let before = read_buf.filled().len();
+        #[cfg(feature = "tokio")]
+        {
+            let read_buf = &mut tokio::io::ReadBuf::new(buf);
+            let before = read_buf.filled().len();
 
-        match Pin::new(&mut *self.inner).poll_read(self.cx, read_buf) {
-            Poll::Pending => Err(std::io::Error::new(
-                std::io::ErrorKind::WouldBlock,
-                "Would block",
-            )),
-            Poll::Ready(_) => Ok(read_buf.filled().len() - before),
+            match Pin::new(&mut *self.inner).poll_read(self.cx, read_buf) {
+                Poll::Pending => Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "Would block",
+                )),
+                Poll::Ready(_) => Ok(read_buf.filled().len() - before),
+            }
+        }
+        #[cfg(feature = "async-std")]
+        {
+            match Pin::new(&mut *self.inner).poll_read(self.cx, buf) {
+                Poll::Pending => Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "Would block",
+                )),
+                Poll::Ready(result) => result,
+            }
         }
     }
 }
@@ -454,7 +475,7 @@ struct SyncWriter<'a, 'b, 'c, T> {
     cx: &'b mut Context<'c>,
 }
 
-impl<'a, 'b, 'c, T: tokio::io::AsyncWrite> SyncWriter<'a, 'b, 'c, T> {
+impl<'a, 'b, 'c, T: Write> SyncWriter<'a, 'b, 'c, T> {
     fn new(inner: &'a mut T, cx: &'b mut Context<'c>) -> Self {
         Self { inner, cx }
     }
@@ -462,7 +483,7 @@ impl<'a, 'b, 'c, T: tokio::io::AsyncWrite> SyncWriter<'a, 'b, 'c, T> {
 
 impl<'a, 'b, 'c, T> std::io::Write for SyncWriter<'a, 'b, 'c, T>
 where
-    T: tokio::io::AsyncWrite + std::marker::Unpin,
+    T: Write + std::marker::Unpin,
 {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match Pin::new(&mut *self.inner).poll_write(self.cx, buf) {

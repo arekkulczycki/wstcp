@@ -19,5 +19,13 @@ env_logger = "0.11.0"
 httpcodec = "0.2"
 log = "0.4.20"
 sha-1 = "0.10"
-tokio = { version = "1.41.1", features = ["full", "net"] }
+tokio = { version = "1.41.1", features = ["full", "net"], optional = true}
+async-std = {version = "1.0", optional = true}
+
 trackable = "1"
+
+[features]
+default = ["async-std"] 
+# default = ["tokio"] 
+async-std = ["dep:async-std"]
+tokio = ["dep:tokio"]
