@@ -17,12 +17,10 @@ use async_std::{net::Incoming, stream::Stream};
 #[cfg(feature = "tokio")]
 pub struct ProxyServer {
     real_server_addr: SocketAddr,
-    incoming: TcpListener,
+    listener: TcpListener,
 }
 
-
 /// WebSocket to TCP proxy server.
-
 #[derive(Debug)]
 #[cfg(feature = "async-std")]
 pub struct ProxyServer<'a> {
@@ -33,11 +31,11 @@ pub struct ProxyServer<'a> {
 #[cfg(feature = "tokio")]
 impl ProxyServer {
     /// Makes a new `ProxyServer` instance.
-    pub async fn new(incoming: TcpListener, real_server_addr: SocketAddr) -> Result<ProxyServer> {
+    pub async fn new(listener: TcpListener, real_server_addr: SocketAddr) -> Result<ProxyServer> {
         log::info!("Starts a WebSocket proxy server");
         Ok(ProxyServer {
             real_server_addr,
-            incoming,
+            listener,
         })
     }
 }
@@ -61,7 +59,7 @@ impl Future for ProxyServer {
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let this = self.get_mut();
         loop {
-            match Pin::new(&mut this.incoming).poll_accept(cx) {
+            match Pin::new(&mut this.listener).poll_accept(cx) {
                 Poll::Pending => {
                     break;
                 }
