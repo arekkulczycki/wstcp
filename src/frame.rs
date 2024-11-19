@@ -295,10 +295,16 @@ impl Decode for FramePayloadDecoder {
         let frame = match header.opcode {
             Opcode::ConnectionClose => {
                 track_assert_eq!(self.buf_start, 0, bytecodec::ErrorKind::InconsistentState);
-                track_assert!(self.buf_end >= 2, bytecodec::ErrorKind::InvalidInput);
-                let code = BigEndian::read_u16(&self.buf);
-                let reason = Vec::from(&self.buf[2..self.buf_end]);
-                Frame::ConnectionClose { code, reason }
+                // track_assert!(self.buf_end >= 2, bytecodec::ErrorKind::InvalidInput);
+                if self.buf_end >= 2 {
+                    let code = BigEndian::read_u16(&self.buf);
+                    let reason = Vec::from(&self.buf[2..self.buf_end]);
+                    Frame::ConnectionClose { code, reason }
+                } else {
+                    let code = 0;
+                    let reason = Vec::from(&self.buf[0..self.buf_end]);
+                    Frame::ConnectionClose { code, reason }
+                }
             }
             Opcode::Ping => {
                 track_assert_eq!(self.buf_start, 0, bytecodec::ErrorKind::InconsistentState);
