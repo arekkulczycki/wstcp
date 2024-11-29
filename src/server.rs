@@ -35,6 +35,7 @@ impl Future for ProxyServer {
         loop {
             match Pin::new(&mut this.incoming).poll_accept(cx) {
                 Poll::Pending => {
+                    log::debug!("server pending...");
                     break;
                 }
                 Poll::Ready(Ok((stream, addr))) => {
@@ -53,6 +54,7 @@ impl Future for ProxyServer {
                     });
                 }
                 Poll::Ready(Err(e)) => {
+                    log::debug!("server ready...");
                     return Poll::Ready(Err(track!(Error::from(e))));
                 }
             }
