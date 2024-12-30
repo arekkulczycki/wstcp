@@ -21,3 +21,4 @@ log = "0.4.20"
 sha-1 = "0.10"
 tokio = { version = "1.41.1", features = ["full", "net"] }
 trackable = "1"
+tokio-util = "0.7.13"

@@ -14,12 +14,14 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 use tokio::net::TcpStream;
+use tokio_util::sync::CancellationToken;
 
 const BUF_SIZE: usize = 4096;
 
 #[derive(Debug)]
 pub struct ProxyChannel {
     ws_stream: TcpStream,
+    cancellation_token: CancellationToken,
     ws_rbuf: ReadBuf<Vec<u8>>,
     ws_wbuf: WriteBuf<Vec<u8>>,
     real_server_addr: SocketAddr,
@@ -34,11 +36,12 @@ pub struct ProxyChannel {
     frame_encoder: FrameEncoder,
 }
 impl ProxyChannel {
-    pub fn new(ws_stream: TcpStream, real_server_addr: SocketAddr) -> Self {
+    pub fn new(ws_stream: TcpStream, real_server_addr: SocketAddr, cancellation_token: CancellationToken) -> Self {
         let _ = ws_stream.set_nodelay(true);
         log::info!("New proxy channel is created");
         ProxyChannel {
             ws_stream,
+            cancellation_token,
             ws_rbuf: ReadBuf::new(vec![0; BUF_SIZE]),
             ws_wbuf: WriteBuf::new(vec![0; BUF_SIZE]),
             real_server_addr,
@@ -282,6 +285,10 @@ impl Future for ProxyChannel {
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let this = self.get_mut();
         loop {
+            if this.cancellation_token.is_cancelled() {
+                return Poll::Pending;
+            }
+
             // WebSocket TCP stream I/O
             track!(this.ws_rbuf.fill(SyncReader::new(&mut this.ws_stream, cx)))?;
             track!(this.ws_wbuf.flush(SyncWriter::new(&mut this.ws_stream, cx)))?;

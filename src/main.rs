@@ -5,6 +5,7 @@ extern crate trackable;
 use tokio::net::TcpListener;
 use clap::{Parser, ValueEnum};
 use std::net::SocketAddr;
+use tokio_util::sync::CancellationToken;
 use wstcp::{Error, ProxyServer};
 
 #[derive(Parser)]
@@ -36,7 +37,8 @@ async fn main() -> trackable::result::TopLevelResult {
     let listener = track!(TcpListener::bind(bind_addr).await.map_err(Error::from))
         .expect("failed to start listening on the given proxy address");
 
-    let proxy = ProxyServer::new(listener, tcp_server_addr)
+    let cancellation_token = CancellationToken::new();
+    let proxy = ProxyServer::new(listener, tcp_server_addr, cancellation_token)
         .await
         .unwrap_or_else(|e| panic!("{}", e));
     proxy.await.unwrap_or_else(|e| panic!("{}", e));
