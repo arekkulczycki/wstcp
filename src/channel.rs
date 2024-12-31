@@ -286,7 +286,7 @@ impl Future for ProxyChannel {
         let this = self.get_mut();
         loop {
             if this.cancellation_token.is_cancelled() {
-                return Poll::Pending;
+                return Poll::Ready(this.starts_closing(0, true));
             }
 
             // WebSocket TCP stream I/O

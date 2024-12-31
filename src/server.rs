@@ -38,7 +38,7 @@ impl Future for ProxyServer {
         let this = self.get_mut();
         loop {
             if this.cancellation_token.is_cancelled() {
-                return Poll::Pending;
+                return Poll::Ready(Ok(()));
             }
 
             match Pin::new(&mut this.incoming).poll_accept(cx) {
